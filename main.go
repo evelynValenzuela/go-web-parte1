@@ -2,6 +2,7 @@ package main
 
 import (
 	"parte2/controllers"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -9,13 +10,19 @@ import (
 
 func main(){
 	//products := services.CargarDatos(FILEPATH)
-	server := gin.Default()
-	server.GET("/ping", controllers.GetPong)
-	server.GET("/products", controllers.GetProducts)
-	server.GET("/products/:id", controllers.GetProductById)
-	server.GET("/products/search", controllers.GetProductsWithPrice)
 	
-	err := server.Run()
+	server := gin.Default()
+	p := server.Group("/product")
+
+
+
+	server.GET("/ping", controllers.GetPong)
+	p.GET("", controllers.GetProducts)
+	p.GET("/:id", controllers.GetProductById)
+	p.GET("/search", controllers.GetProductsWithPrice)
+	p.POST("", controllers.SaveProduct)
+	
+	err := server.Run(":8081")
 	if err != nil {
 		panic(err)
 	}

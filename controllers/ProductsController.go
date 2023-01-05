@@ -1,16 +1,16 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"parte2/models"
-	"parte2/services"
+	"parte2/repository"
 	"strconv"
-
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
-var products = services.CargarDatos("products.json")
 
 func GetPong(ctx *gin.Context) {
 	//Response
@@ -19,7 +19,7 @@ func GetPong(ctx *gin.Context) {
 
 func GetProducts(ctx *gin.Context) {
 	//Response
-	ctx.JSON(http.StatusOK, products)
+	ctx.JSON(http.StatusOK, repository.CargarDatos())
 }
 
 func GetProductById(ctx *gin.Context) {
@@ -30,17 +30,11 @@ func GetProductById(ctx *gin.Context) {
 	}
 
 	//Process
-	var productSearched models.Product
-	for _, product := range products {
-		if(product.Id == id) {
-			productSearched = product
-			break
-		}
-	}
+	productSearched := repository.GetProduct(id)
 
 	//Response
 	if productSearched.Id == 0 {
-		ctx.String(http.StatusNotFound, "El producto ingresado no se encuentra en la base de datos")
+		ctx.JSON(http.StatusNotFound, models.Err(repository.ErrorProductNotFound))
 	} else {
 		ctx.JSON(http.StatusOK, productSearched)
 	}
@@ -56,18 +50,45 @@ func GetProductsWithPrice(ctx *gin.Context) {
 	}
 
 	//Process
-	var productsSearched []models.Product
-	for _, product := range products {
-		if(product.Price > priceGt) {
-			productsSearched = append(productsSearched, product)
-		}
-	}
+	productsSearched := repository.GetProductsWithFilter(priceGt)
 
 	//Response 
 	if len(productsSearched) == 0{
-		ctx.String(http.StatusNotFound, "No se encontraron productos con el criterio establecido")
+		ctx.JSON(http.StatusNotFound, models.Err(repository.ErrorProductsNotFound))
 	} else {
 		ctx.JSON(http.StatusOK, productsSearched)
 	}
+
+}
+
+func SaveProduct(ctx *gin.Context) {
+	//Request 
+	var req models.Product
+	if err := ctx.ShouldBind(&req); err != nil {
+		
+		ctx.JSON(http.StatusBadRequest, models.Err(errors.New("Error en el servidor")))
+		return
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(&req); err != nil {
+		ctx.JSON(http.StatusUnprocessableEntity, models.Err(repository.ErrorInvalidData))
+		return
+	}
+
+	//Process
+	product, err := repository.AddProduct(req)
+
+	if err != nil {
+		if errors.Is(err , repository.ErrorCodeValueExist) {
+			ctx.JSON(http.StatusConflict, models.Err(err))
+			return 
+		} 
+		ctx.JSON(http.StatusBadRequest, models.Err(err))
+		return
+	}
+
+	//Response 
+	ctx.JSON(http.StatusCreated, product)
 
 }
